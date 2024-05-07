@@ -9,7 +9,7 @@ CREATE TABLE Categoria(
 -- Crear tabla PRODUCTO
 CREATE TABLE Producto(
     id BIGSERIAL PRIMARY KEY,
-    nomre VARCHAR(50) UNIQUE NOT NULL,
+    nombre VARCHAR(50) UNIQUE NOT NULL,
     numero_referencia VARCHAR(50) UNIQUE NOT NULL,
     coleccion VARCHAR(50),
     es_personalizable BOOLEAN NOT NULL,
