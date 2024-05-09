@@ -3,7 +3,7 @@
 -- Crear tabla CATEGORIA
 CREATE TABLE Categoria(
     id BIGSERIAL PRIMARY KEY,
-    nombre VARCHAR(40) UNIQUE NOT NULL,
+    nombre VARCHAR(40) UNIQUE NOT NULL
 );
 
 -- Crear tabla PRODUCTO
