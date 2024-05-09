@@ -13,7 +13,7 @@ import psycopg2.errorcodes
 import psycopg2.extras;
 
 # Parámetros de conexión
-dbname = 'bda'
+dbname = ''
 user = ''
 password = ''
 host = ''  
@@ -22,8 +22,7 @@ host = ''
 def connect_db():
 
     try:
-        #conn = psycopg2.connect(dbname=dbname, user=user, password=password)
-        conn = psycopg2.connect(dbname=dbname)
+        conn = psycopg2.connect(dbname=dbname, user=user, password=password)
 
         conn.autocommit = False
         
@@ -56,14 +55,20 @@ def add_product(conn):
     y su referencia a categoria
     """
     n_reference = input("Número de Referencia: ")
+    if n_reference == "": n_reference = None
+
     name = input("Nombre: ")
+    if name == "": name = None
+
     colection = input("Colección: ")
     if colection == "": colection = None
+
     sisPersonalizable = input("Es personalizable y/[n]") ## por defecto no es personalizable
     isPersonalizable = False
     if sisPersonalizable == "y": isPersonalizable = True
+
     scategory_id = input("Id categoria: ")
-    category_id = int(scategory_id)
+    category_id = None if scategory_id == "" else int(scategory_id)
 
     sql="""
             INSERT INTO Producto(nombre,numero_referencia,coleccion,es_personalizable,
@@ -75,53 +80,102 @@ def add_product(conn):
                               'i':category_id})  
             conn.commit()
             id = cur.fetchone()[0]
-            print("Producto Añadido con id: {id}.")
+            print(f"Producto Añadido con id: {id}.")
         except psycopg2.Error as e:
-            print(f"Error al añadir el producto: {e}")
+            if e.pgcode == psycopg2.errorcodes.UNIQUE_VIOLATION:
+                print(f"Error al añadir producto, {e.diag.message_detail}")
+            elif e.pgcode == psycopg2.errorcodes.FOREIGN_KEY_VIOLATION:
+                print(f"Error al añadir producto, la categoria no existe")
+            elif e.pgcode == psycopg2.errorcodes.NOT_NULL_VIOLATION:
+                print(f"Error al añadir producto, hay campos que no pueden ser nulos no existe")
+            else:
+                print(f"Error al añadir el producto: {e}")
             conn.rollback()
+
 ##-------------------------------------------------------------
 def add_color(conn):
     """
     Añade un nuevo color a la base de datos y muestra el ID del color añadido.
     """
     s_product_id = input("Id del Producto que se quiere añadir un nuevo color: ")
-
-    if s_product_id is "":
-        print("Debes introducit un id de producto")
-        return
-    product_id = int(s_product_id)
+    product_id = None if s_product_id == "" else int(s_product_id)
     
     color_name = input("Color del Producto: ")
-    if color_name is "":
-        print("Debes introducir un color de producto")
-        return
+    if color_name == "": color_name = None
     
-    sprice = input("Precio del producto")
-    price = float(sprice)
+    s_price = input("Precio del producto")
+    price = None if s_price == "" else float(s_price)
     
     composition = input("Composición: ")
-    if composition is "":
-        print("Debes introducir una composicion")
-        return
+    if composition == "": composition = None
     
-    cursor = conn.cursor()
+    sql="""
+            INSERT INTO Color(nombre, precio, composicion, id_producto) 
+            VALUES (%(n)s, %(p)s, %(c)s, %(i)s) RETURNING id
+        """
+    with conn.cursor() as cur:
+        try:
+            # Inserta el color en la tabla y retorna el ID autogenerado
+            cur.execute(sql, {'n': color_name, 'p': price, 'c': composition, 'i': product_id})
+            # Recupera el ID del color recién insertado
+            color_id = cur.fetchone()[0]
+            conn.commit()  # Confirma la transacción
+            print(f"Color añadido con éxito. ID: {color_id}")
+        except psycopg2.Error as e:
+            if e.pgcode == psycopg2.errorcodes.UNIQUE_VIOLATION:
+                print(f"Error al añadir color, {e.diag.message_detail}")
+            elif e.pgcode == psycopg2.errorcodes.FOREIGN_KEY_VIOLATION:
+                print(f"Error al añadir color, el producto no existe")
+            elif e.pgcode == psycopg2.errorcodes.NOT_NULL_VIOLATION:
+                print(f"Error al añadir color, el {e.diag.column_name} no pueden ser nulo")
+            elif e.pgcode == psycopg2.errorcodes.CHECK_VIOLATION:
+                print(f"Error al añadir color, el precio ha de ser > 0")
+
+            else:
+                print(f"Error al añadir el color: {e}")
+            conn.rollback()
+
+##-------------------------------------------------------------
+def delete_product(conn):
+    """
+    Elimina un color de la base de datos dado un Id introducido por pantalla
+    """
+    s_product_id = input("Id del Producto: ")
+    product_id = None if s_product_id == "" else int(s_product_id)
 
     sql="""
-            "INSERT INTO Color(nombre, precio, composicion, id_producto) 
-            VALUES (%(n)s, %(p)s, %(c)s, %(i)s) RETURNING id"
+            DELETE FROM Producto WHERE id = %(i)s
         """
     
-    try:
-        # Inserta el color en la tabla y retorna el ID autogenerado
-        cursor.execute(sql, {'n': color_name, 'p': price, 'c': composition, 'i': product_id})
-        # Recupera el ID del color recién insertado
-        color_id = cursor.fetchone()[0]
-        conn.commit()  # Confirma la transacción
-        print(f"Color añadido con éxito. ID: {color_id}")
-    except psycopg2.Error as e:
-        # Maneja cualquier error que ocurra durante la inserción
-        conn.rollback()
-        print(f"Error al añadir color: {e}")
+    with conn.cursor() as cur:
+        try:
+            cur.execute(sql, {'i': product_id})
+            conn.commit()
+            print(f"Producto con ID: {product_id} eliminado con exito")
+        except psycopg2.Error as e:
+            conn.rollback()
+            print(f"Error al eliminar producto: {e}")
+
+##-------------------------------------------------------------
+def delete_color(conn):
+    """
+    Elimina un color de la base de datos dado un Id introducido por pantalla
+    """
+    s_color_id = input("Id del Producto: ")
+    color_id = None if s_color_id == "" else int(s_color_id)
+
+    sql="""
+            "DELETE FROM Color WHERE id = %(i)s"
+        """
+    
+    with conn.cursor() as cur:
+        try:
+            cur.execute(sql, {'i': color_id})
+            conn.commit()
+            print(f"Color con ID: {color_id} eliminado con exito")
+        except psycopg2.Error as e:
+            conn.rollback()
+            print(f"Error al añadir color: {e}")
 
 
 ##-------------------------------------------------------------
@@ -132,9 +186,7 @@ def add_category(conn):
     """
 
     category_name = input("Nombre categoria: ")
-    if category_name ==  "":
-        print("Debes introducir un nombre de categoria")
-        return
+    if category_name ==  "": category_name = None
 
     sql="""
             INSERT INTO Categoria(nombre) values(%(n)s) returning id
@@ -144,9 +196,14 @@ def add_category(conn):
             cur.execute(sql, {'n':category_name}) 
             conn.commit() 
             id = cur.fetchone()[0]
-            print(f"Categoria Añadido con id: {id}.")
+            print(f"Categoria añadida con id: {id}.")
         except psycopg2.Error as e:
-            print(f"Error al añadir la categoria: {e}")
+            if e.pgcode == psycopg2.errorcodes.NOT_NULL_VIOLATION:
+                print(f"Error al añadir Categoria, el {e.diag.column_name} no pueden ser nulo")
+            elif e.pgcode == psycopg2.errorcodes.UNIQUE_VIOLATION:
+                print(f"Error al añadir Categoria, el Nombre ya existe")
+            else:
+                print(f"Error al añadir la Categoria: {e}, {e.pgcode}")
             conn.rollback()
 
     
@@ -173,6 +230,10 @@ def menu(conn):
             add_product(conn)
         elif tecla == '2':
             add_color(conn)
+        elif tecla == '3':
+            delete_product(conn)
+        elif tecla == '4':
+            delete_color(conn)
         elif tecla == '5':
             add_category(conn)
 
